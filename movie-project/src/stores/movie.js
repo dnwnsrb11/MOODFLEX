@@ -94,7 +94,7 @@ export const useMovieStore = defineStore('movie', () => {
   const getMind = async function(MindName) {
     try {
       const respons = await axios.get(`http://127.0.0.1:8000/api/v1/accounts/emotion/${MindName}`)
-      MindMoveList.value = await respons
+      MindMoveList.value = respons.data
     } catch(err) {
       console.error('데이터 불러오기 실패 : ',err)
     }
