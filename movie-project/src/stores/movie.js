@@ -89,5 +89,17 @@ export const useMovieStore = defineStore('movie', () => {
   }
 
 
-  return {movieList, apiMovie, apimovieBest,movieBestList, Token, getUserId, username, userId}
+  // 감정 get
+  const MindMoveList = ref(null)
+  const getMind = async function(MindName) {
+    try {
+      const respons = await axios.get(`http://127.0.0.1:8000/api/v1/accounts/emotion/${MindName}`)
+      MindMoveList.value = await respons
+    } catch(err) {
+      console.error('데이터 불러오기 실패 : ',err)
+    }
+}
+
+
+  return {movieList, apiMovie, apimovieBest,movieBestList, Token, getUserId, username, userId, getMind, MindMoveList}
 }, {persist:true})
