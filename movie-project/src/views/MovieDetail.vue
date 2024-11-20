@@ -34,6 +34,19 @@
                         <div class="score">
                             <div class="star-score">
                                 <!-- 별점 기능 추가 -->
+                                <div class="inner">
+                                    <div class="star-rating">
+                                        <div
+                                            class="star"
+                                            v-for="index in 5"
+                                            :key="index"
+                                            @click="check(index)"
+                                        >
+                                            <span v-if="index <= score">🍎</span>
+                                            <span v-if="index > score">🍏</span>
+                                        </div>
+                                    </div>
+                                </div>
                                 <h3>3.4</h3>
                                 <p>평균 별점</p>
                             </div>
@@ -114,9 +127,19 @@ const moviegenre = computed(() => {
 onMounted(() => {
   getMovieDetails();
 });
+
+//별점
+const score = ref(0);
+
+const check = (index) => {
+    score.value = index
+    console.log(score.value)
+}
+
 </script>
 
 <style scoped>
+
 /* 전체 스타일 */
 .background-container {
     position: relative;
