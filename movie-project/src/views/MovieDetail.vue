@@ -9,10 +9,10 @@
                     <div>
                         <h1>{{ movie.title }}</h1>
                         <p>{{ movie.release_date }}</p>
-                        <span v-for="genre in movie.genres" :key="genre.id">
-                            <p>{{ genre.name }}</p>
-                        </span>
-                        <p>{{ movie.overview }}</p>
+                        <p>{{ moviegenre.name }}</p>
+                        <div class="movie-title-info-overview">
+                            <p>{{ movie.overview }}</p>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -25,7 +25,9 @@
                     </div>
                     <div class="movie-title-detail-content">
                         <div class="movie-score">
-                            {{ movie.vote_average }}
+                            <div>
+                                {{ movie.vote_average }}
+                            </div>
                             <p>TMDB 기준</p>
                         </div>
                         <hr />
@@ -74,13 +76,12 @@
 <script setup>
 import { useMovieStore } from "@/stores/movie";
 import axios from "axios";
-import { onMounted, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 import { useRoute } from "vue-router";
 const store = useMovieStore();
 const route = useRoute();
 const movieId = route.params.movie_id;
 
-// 영화 정보 가져오기 (테스트용)
 // movie.origin_country는 model에 없음
 const movie = ref(null);
 const END_POINT = "http://127.0.0.1:8000/api/v1/movies";
@@ -95,6 +96,21 @@ const getMovieDetails = async () => {
   }
 };
 
+// 장르 선택
+const moviegenreId = computed(() => {
+    return movie.value ? movie.value.genre : null;
+})
+
+// 장르 이름 가져오기
+const moviegenre = computed(() => {
+  return moviegenreId.value && store.genres 
+    ? store.genres.find(genre => genre.id === moviegenreId.value) 
+    : null;
+});
+
+
+
+
 onMounted(() => {
   getMovieDetails();
 });
@@ -103,10 +119,12 @@ onMounted(() => {
 <style scoped>
 /* 전체 스타일 */
 .background-container {
-  position: relative; /* 배경과 텍스트를 겹치기 위해 기준을 설정 */
-  width: 100%;
-  height: 500px; /* 원하는 높이로 조정 */
-  overflow: hidden;
+    position: relative;
+    display: flex; /* Flexbox 활성화 */
+    justify-content: center; /* 가로축 중앙 정렬 */
+    align-items: center; /* 세로축 중앙 정렬 */
+    height: 500px; /* 부모 컨테이너의 높이 설정 (전체 화면 기준) */
+    overflow: hidden;
 }
 
 .background-img::before {
@@ -122,9 +140,9 @@ onMounted(() => {
 }
 
 .background-img img {
-  width: 100%;
-  height: 100%;
   object-fit: cover; /* 이미지가 컨테이너에 맞게 채워지도록 설정 */
+  width: 100%; /* 이미지 크기 제한 (선택 사항) */
+  height: 100%; /* 이미지 크기 제한 (선택 사항) */
 }
 
 .movie-title {
@@ -140,6 +158,17 @@ onMounted(() => {
   grid-template-columns: 1fr repeat(10, 1fr) 1fr; /* 양옆에 1등분씩 여백, 가운데 10등분 */
   gap: 0;
 }
+
+.movie-title-info-overview {
+    width: 70%;
+}
+.movie-title-info-overview p {
+    display: -webkit-box; /* 플렉스 박스를 사용 */
+    -webkit-line-clamp: 2; /* 2줄 이상이면 ... 표시 */
+    -webkit-box-orient: vertical;
+    overflow: hidden; /* 넘치는 텍스트 숨김 */
+}
+
 .movie-title-info div {
   grid-column: 4/10;
   grid-row: 1;
@@ -180,6 +209,17 @@ onMounted(() => {
     flex-direction: column;
     width: 100%;
     margin-left: 1em;
+}
+.movie-score {
+    max-width: 100px;
+    border: 1px solid red;
+    text-align: center;
+}
+.movie-score div {
+    background-color: gray;
+    padding: 0.5em 1em;
+    border-radius: 10px;
+    font-size: 1.3em;
 }
 .score {
     display: flex;
