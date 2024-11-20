@@ -32,23 +32,27 @@
                         </div>
                         <hr />
                         <div class="score">
-                            <div class="star-score">
-                                <!-- 별점 기능 추가 -->
-                                <div class="inner">
-                                    <div class="star-rating">
-                                        <div
-                                            class="star"
-                                            v-for="index in 5"
-                                            :key="index"
-                                            @click="check(index)"
-                                        >
-                                            <span v-if="index <= score">🍎</span>
-                                            <span v-if="index > score">🍏</span>
+                            <div class="score-point">
+                                <div class="star-score">
+                                    <!-- 별점 기능 추가 -->
+                                    <div class="inner">
+                                        <div class="star-rating">
+                                            <div
+                                                class="star"
+                                                v-for="index in 5"
+                                                :key="index"
+                                                @click="check(index)"
+                                            >
+                                                <span v-if="index <= score">🍎</span>
+                                                <span v-if="index > score">🍏</span>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
-                                <h3>3.4</h3>
-                                <p>평균 별점</p>
+                                <div>
+                                    <h3>3.4</h3>
+                                    <p>평균 별점</p>
+                                </div>
                             </div>
                             <div class="comment">
                                 <div>
@@ -270,5 +274,12 @@ const check = (index) => {
 .all-comment {
     grid-column: 4/10;
     grid-row: 2;
+}
+/* 별점 */
+.inner {
+    
+}
+.star-rating {
+    display: flex;
 }
 </style>
