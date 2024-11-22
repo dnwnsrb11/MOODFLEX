@@ -1,13 +1,17 @@
 from functools import partial
+from typing import Collection
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework import status
-from .models import Movie, Cast, Crew, Emotion, Genre, Person, Review, Comment, ReviewComment
-from .serilalizers import MovieDetailSerializer, MovieListSerializer, ReviewSerializer, ReviewCommentSerializer
+from .models import Movie, Cast, Crew, Emotion, Genre, Person, Review, Comment, ReviewComment, Collection
+from .serilalizers import MovieDetailSerializer, MovieListSerializer, ReviewSerializer, ReviewCommentSerializer, CollectionSerializer
 from .get_data import get_movie_details, get_cast_crew, serch_movie
 from django.shortcuts import get_object_or_404
+from django.contrib.auth import get_user_model
 
-# Create your views here.
+User = get_user_model()
+
+
 
 # 영화 리스트 가져오기
 class MovieListView(APIView):
@@ -21,15 +25,9 @@ class MovieDetailView(APIView):
     def get(self, request, movie_id):
         movie = Movie.objects.filter(id=movie_id).first()
         credits_data = get_cast_crew(movie_id)
-        if movie:
-            serializer = MovieDetailSerializer(movie)
-            response_data = {
-                "movie" : serializer.data,
-                "credits" : credits_data
-            }
 
-            return Response(response_data, status=status.HTTP_200_OK)
-        else:
+        # 영화가 DB에 없으면 들고와서 저장하기
+        if not movie:
             print('현재 선택한 영화가 DB에 없음')
             new_movie = get_movie_details(movie_id)
             genre_ids = [genre['id'] for genre in new_movie.get('genres', [])]
@@ -104,13 +102,33 @@ class MovieDetailView(APIView):
                 )
                 # 해당 영화에 제작진 추가
                 movie.crew.add(crew)
-                
-            serializer = MovieDetailSerializer(movie)
-            response_data = {
-                "movie" : serializer.data,
-                "credits" : credits_data
-            }
-            return Response(response_data, status=status.HTTP_200_OK)
+        reviews = Review.objects.filter(movie=movie_id).select_related('user')     
+        movie_serializer = MovieDetailSerializer(movie)
+        review_serializer = ReviewSerializer(reviews, many=True)
+        response_data = {
+            "movie" : movie_serializer.data,
+            "reviews": review_serializer.data,
+            "credits" : credits_data
+        }
+        return Response(response_data, status=status.HTTP_200_OK)
+    
+    # 찜하기 기능
+    def post(self, request, movie_id):
+        user = get_object_or_404(User, pk=request.user.id)
+        # 영화 객체를 가져와야함
+        # 1. 유효성 검사:
+        # movie_id가 실제로 존재하는 영화인지 확인하기 위해 필요
+        # 만약 해당 영화가 존재하지 않는 경우, Django는 자동으로 404 에러를 반환
+        # 2. add()와 remove() 메서드:
+        # ManyToManyField 관계에서 add()와 remove() 메서드는 객체 자체를 인자로 받음
+        # 따라서 movie 객체를 명시적으로 가져와야 함
+        movie = get_object_or_404(movie, pk=movie_id)
+        if user.kept_movies.filter(pk=movie_id).exist():
+            user.kept_movies.remove(movie)
+            return Response({'message':'찜한 영화를 취소했습니다.'}, status=status.HTTP_200_OK)
+        else:
+            user.kept_movies.add(movie)
+            return Response({'message':'영화를 찜했습니다.'}, status=status.HTTP_200_OK)
         
 # 영화 검색 기능
 class MovieSearchView(APIView):
@@ -130,10 +148,9 @@ class SelectedEmotionView(APIView):
     
 # 영화 리뷰 기능
 class ReviewView(APIView):
+    # 리뷰 들고오기
+    def get(self, request, review_id=None):
 
-    def get(self, request):
-        review_id = request.query_params.get('id', None)
-        
         if review_id:
             review = get_object_or_404(Review, id=review_id)
             comments = ReviewComment.objects.filter(review=review)
@@ -149,8 +166,9 @@ class ReviewView(APIView):
         serializer = ReviewSerializer(reviews, many=True)
         return Response(data=serializer.data, status=status.HTTP_200_OK)
 
+    # 리뷰 작성하기
     def post(self, request):
-        serializer = ReviewSerializer(data=request.data)
+        serializer = ReviewSerializer(data=request.data, context={'request':request}) # context 전달
         if serializer.is_valid():
             serializer.save(user=request.user)
             return Response(data=serializer.data, status=status.HTTP_201_CREATED)
@@ -175,6 +193,7 @@ class ReviewView(APIView):
             'likes_count': review.likes.count(),
         }, status=status.HTTP_200_OK)
 
+    # 리뷰 수정하기
     def put(self, request):
         review_id = request.data.get('id', None)
         if not review_id:
@@ -189,21 +208,23 @@ class ReviewView(APIView):
             serializer.save()
             return Response(serializer.data, status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-    
-    def delete(self, request):
-        review_id = request.data.get('id', None)
-        if  not review_id:
-            return Response({'error':'리뷰 ID가 필요합니다.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    # 리뷰 삭제하기
+    def delete(self, request, review_id):
+        # review_id = request.data.get('id', None)
+        # if  not review_id:
+        #     return Response({'error':'리뷰 ID가 필요합니다.'}, status=status.HTTP_400_BAD_REQUEST)
         
         review = get_object_or_404(Review, id=review_id)
-        if review.user != request.user:
+        if review.user__id != request.user.id:
             return Response({'error': '삭제 권한이 없습니다.'}, status=status.HTTP_403_FORBIDDEN)
         
         review.delete()
-        return Response({'message':'리뷰가 삭제되었습니다.'}, status=status.HTTP_204_NO_CONTENT)
+        return Response({'message':'리뷰가 삭제되었습니다.'}, status=status.HTTP_200_OK)
 
 # 리뷰의 댓글 기능
 class ReviewCommentView(APIView):
+    # 리뷰 댓글 작성
     def post(self, request, review_id):
         review = get_object_or_404(Review, id=review_id)
         serializer = ReviewCommentSerializer(data=request.data)
@@ -211,13 +232,13 @@ class ReviewCommentView(APIView):
             serializer.save(user=request.user, review=review)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-    
+    # 리뷰 댓글들 불러오기
     def get(self, request, review_id):
         review = get_object_or_404(Review, id=review_id)
         comments = ReviewComment.objects.filter(review=review)
         serializer = ReviewCommentSerializer(comments, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
-    
+    # 리뷰 댓글 수정
     def put(self, request, comment_id):
         comment = get_object_or_404(ReviewComment, id=comment_id)
         if comment.user != request.user:
@@ -228,7 +249,7 @@ class ReviewCommentView(APIView):
             serializer.save()
             return Response(serializer.data, status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-        
+    # 리뷰 댓글 삭제
     def delete(self, request, comment_id):
         comment = get_object_or_404(ReviewComment, id=comment_id)
         if comment.user != request.user:
@@ -237,3 +258,26 @@ class ReviewCommentView(APIView):
         comment.delete()
         return Response({'message': '댓글 삭제 성공'}, status=status.HTTP_204_NO_CONTENT)
 
+# 플레이 리스트
+class AddPlaylist(APIView):
+    def post(self, request):
+        serializer = CollectionSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save(user=request.user)
+            return Response(data=serializer.data, status=status.HTTP_201_CREATED)
+        return Response(data=serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+    def get(self, request, user_id):
+        playlists = Collection.objects.filter(user=user_id)
+        serializer = CollectionSerializer(playlists, many=True)
+        return Response(data=serializer.data, status=status.HTTP_200_OK)
+    
+    def delete(self, request, playlist_id):
+        playlist = get_object_or_404(Collection, id=playlist_id, user=request.user)
+        playlist.delete()
+        return Response({'message': '플레이리스트가 삭제되었습니다.'}, status=status.HTTP_204_NO_CONTENT)
+    
+    def put(self, request, playlist_id):
+        ...
+    
+    

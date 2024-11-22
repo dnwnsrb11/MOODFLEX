@@ -1,6 +1,9 @@
+from django.shortcuts import get_object_or_404
 from drf_spectacular.utils import extend_schema
 # Django REST Framework(DRF)에서 제공하는 클래스 기반 뷰(Class-Based View, CBV)의 기본 클래스
 from rest_framework.views import APIView
+
+from movies.serilalizers import MovieListSerializer, ReviewSerializer, ReviewCommentSerializer
 
 from .serializer import UserSerializer
 # APIView는 RESTful API의 각 HTTP 메서드(GET, POST, PUT, DELETE, 등)를 처리하기 위한 메서드(get, post, put, delete 등)를 제공
@@ -22,7 +25,7 @@ from rest_framework.permissions import IsAuthenticated # 사용자 권한 인증
 from rest_framework.authtoken.models import Token
 from django.contrib.auth import authenticate
 
-from movies.models import Review
+from movies.models import Review, Collection, ReviewComment
 
 User = get_user_model()
 
@@ -52,7 +55,7 @@ class RegisterView(APIView):
             return Response({"error": "이미 사용 중인 이메일입니다."}, status=status.HTTP_400_BAD_REQUEST)
         if User.objects.filter(nickname=nickname).exists():
             return Response({"error": "이미 사용 중인 프로필 이름입니다."}, status=status.HTTP_400_BAD_REQUEST)
-        user = User.objects.create(
+        User.objects.create(
             username = username,
             nickname = nickname,
             password = make_password(password),
@@ -96,14 +99,15 @@ class SignoutView(APIView):
         except Exception as e:
             return Response({"error": f"에러: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
 
+
  
 class ProfileUserView(APIView):
-    permission_classes = [IsAuthenticated]
     
     def get(self, request, user_id):
         # user.id, username, email, user_profile, user_intro, kept_movies, following, follower 수
         # 유저가 작성한 리뷰들 id도 모아서 뿌리기
         # 유저의 플레이 리스트 정보도 같이 뿌리기
+        
         user = User.objects.get(id=user_id)
         serializer = UserSerializer(user)
         return Response(serializer.data, status=status.HTTP_200_OK)
@@ -124,11 +128,50 @@ class ProfileUserView(APIView):
 
         return Response({'message': '수정 완료'}, status=status.HTTP_200_OK)
     
-class UserReviewView(APIView):
-    permission_classes = [IsAuthenticated]
+class UserFollowView(APIView):
+    def post(self, request, user_id):
+        target = User.objects.get(pk=user_id)
+        if target == request.user:
+            return Response({'error': '자기 자신을 팔로우할 수 없습니다.'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        is_following = target.followers.filter(id=request.user.id).exists()
 
+        # 팔로윙 취소
+        if is_following:
+            target.followers.remove(request.user)
+            message = '팔로우를 취소'
+        # 팔로우 추가
+        else:
+            target.followers.add(request.user)
+            message = '팔로우!!!!!!!'
+        
+        return Response({'message': message}, status=status.HTTP_200_OK)
+
+    
+class UserReviewView(APIView):
     def get(self, request, user_id):
-        user = user_id
+        user_reviews = Review.objects.filter(user=user_id)
+        serializer = ReviewSerializer(user_reviews, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+    
+class UserReviewCommentView(APIView):
+    def get(self, request, user_id):
+        user_reviews = ReviewComment.objects.filter(user=user_id)
+        serializer = ReviewCommentSerializer(user_reviews, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+    
+class UserMovieView(APIView):
+    def get(self, request, user_id):
+        user = User.objects.get(id=user_id)
+        kept_movies = user.kept_movies.all()
+        serializers = MovieListSerializer(kept_movies, many=True)
+        return Response(serializers.data, status=status.HTTP_200_OK)
+    
+
+        
+        
+        
+        
 
         
     
